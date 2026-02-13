@@ -101,6 +101,23 @@ services:
             - '/dev/shm:/dev/shm'
         networks:
             - sail
+    elasticsearch:
+        image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+        container_name: catalog-elastic
+        environment:
+            - discovery.type=single-node
+            - xpack.security.enabled=false
+            - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+        ports:
+            - '${FORWARD_ELASTIC_PORT:-9200}:9200'
+        volumes:
+            - 'sail-elastic:/usr/share/elasticsearch/data'
+        networks:
+            - sail
+        healthcheck:
+            test: ["CMD", "curl", "-f", "http://localhost:9200"]
+            retries: 3
+            timeout: 5s
 networks:
     sail:
         driver: bridge
@@ -110,4 +127,6 @@ volumes:
     sail-redis:
         driver: local
     sail-meilisearch:
+        driver: local
+    sail-elastic:
         driver: local

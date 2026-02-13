@@ -40,7 +40,6 @@ class ProductService
         
         // Invalidar cache
         Cache::forget("product.{$id}");
-        Cache::tags(['product_search'])->flush();
         
         // Sincronizar com Elasticsearch
         SyncProductToElasticsearch::dispatch($product->toArray(), 'update');
@@ -83,12 +82,6 @@ class ProductService
         // Não cachear paginação alta
         $page = $params['page'] ?? 1;
         $cacheKey = 'search_' . md5(json_encode($params));
-        
-        if ($page <= 50) {
-            return Cache::tags(['product_search'])->remember($cacheKey, 60, function () use ($params) {
-                return $this->elasticsearch->search($params);
-            });
-        }
         
         return $this->elasticsearch->search($params);
     }
