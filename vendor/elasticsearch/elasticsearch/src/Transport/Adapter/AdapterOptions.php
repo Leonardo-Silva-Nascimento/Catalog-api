@@ -22,7 +22,6 @@ final class AdapterOptions
     const HTTP_ADAPTERS = [
         "GuzzleHttp\\Client" => "Elastic\\Elasticsearch\\Transport\\Adapter\\Guzzle",
         "Symfony\\Component\\HttpClient\\HttplugClient" => "Elastic\\Elasticsearch\\Transport\\Adapter\\Symfony",
-        "Symfony\\Component\\HttpClient\\Psr18Client" => "Elastic\\Elasticsearch\\Transport\\Adapter\\Symfony",
-        "Elastic\\Transport\\Client\\Curl" => "Elastic\\Elasticsearch\\Transport\\Adapter\\ElasticCurl"
+        "Symfony\\Component\\HttpClient\\Psr18Client" => "Elastic\\Elasticsearch\\Transport\\Adapter\\Symfony"
     ];
 }

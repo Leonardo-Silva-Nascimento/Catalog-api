@@ -29,20 +29,21 @@ use Http\Promise\Promise;
 class Monitoring extends AbstractEndpoint
 {
 	/**
-	 * Send monitoring data
+	 * Used by the monitoring features to send monitoring data.
 	 *
-	 * @link https://www.elastic.co/docs/api/doc/elasticsearch
+	 * @see https://www.elastic.co/guide/en/elasticsearch/reference/master/monitor-elasticsearch-cluster.html
 	 *
 	 * @param array{
-	 *     system_id?: string, // Identifier of the monitored system
-	 *     system_api_version?: string, // API Version of the monitored system
-	 *     interval?: int|string, // Collection interval (e.g., '10s' or '10000ms') of the payload
-	 *     pretty?: bool, // Pretty format the returned JSON response. (DEFAULT: false)
-	 *     human?: bool, // Return human readable values for statistics. (DEFAULT: true)
-	 *     error_trace?: bool, // Include the stack trace of returned errors. (DEFAULT: false)
-	 *     source?: string, // The URL-encoded request definition. Useful for libraries that do not accept a request body for non-POST requests.
-	 *     filter_path?: string|array<string>, // A comma-separated list of filters used to reduce the response.
-	 *     body: string|array<mixed>, // (REQUIRED) The operation definition and data (action-data pairs), separated by newlines. If body is a string must be a valid JSON.
+	 *     type: string, //  Default document type for items which don't provide one
+	 *     system_id: string, // Identifier of the monitored system
+	 *     system_api_version: string, // API Version of the monitored system
+	 *     interval: string, // Collection interval (e.g., '10s' or '10000ms') of the payload
+	 *     pretty: boolean, // Pretty format the returned JSON response. (DEFAULT: false)
+	 *     human: boolean, // Return human readable values for statistics. (DEFAULT: true)
+	 *     error_trace: boolean, // Include the stack trace of returned errors. (DEFAULT: false)
+	 *     source: string, // The URL-encoded request definition. Useful for libraries that do not accept a request body for non-POST requests.
+	 *     filter_path: list, // A comma-separated list of filters used to reduce the response.
+	 *     body: array, // (REQUIRED) The operation definition and data (action-data pairs), separated by newlines
 	 * } $params
 	 *
 	 * @throws NoNodeAvailableException if all the hosts are offline
@@ -51,20 +52,21 @@ class Monitoring extends AbstractEndpoint
 	 *
 	 * @return Elasticsearch|Promise
 	 */
-	public function bulk(?array $params = null)
+	public function bulk(array $params = [])
 	{
-		$params = $params ?? [];
-		$this->checkRequiredParameters(['system_id','system_api_version','interval','body'], $params);
-		$url = '/_monitoring/bulk';
-		$method = 'POST';
-
+		$this->checkRequiredParameters(['body'], $params);
+		if (isset($params['type'])) {
+			$url = '/_monitoring/' . $this->encode($params['type']) . '/bulk';
+			$method = 'POST';
+		} else {
+			$url = '/_monitoring/bulk';
+			$method = 'POST';
+		}
 		$url = $this->addQueryString($url, $params, ['system_id','system_api_version','interval','pretty','human','error_trace','source','filter_path']);
 		$headers = [
 			'Accept' => 'application/json',
 			'Content-Type' => 'application/x-ndjson',
 		];
-		$request = $this->createRequest($method, $url, $headers, $params['body'] ?? null);
-		$request = $this->addOtelAttributes($params, [], $request, 'monitoring.bulk');
-		return $this->client->sendRequest($request);
+		return $this->client->sendRequest($this->createRequest($method, $url, $headers, $params['body'] ?? null));
 	}
 }

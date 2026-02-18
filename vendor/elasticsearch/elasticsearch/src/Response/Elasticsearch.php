@@ -15,21 +15,17 @@ declare(strict_types = 1);
 namespace Elastic\Elasticsearch\Response;
 
 use ArrayAccess;
-use DateTime;
-use Elastic\Elasticsearch\Client;
 use Elastic\Elasticsearch\Exception\ArrayAccessException;
 use Elastic\Elasticsearch\Exception\ClientResponseException;
 use Elastic\Elasticsearch\Exception\ServerResponseException;
 use Elastic\Elasticsearch\Traits\MessageResponseTrait;
 use Elastic\Elasticsearch\Traits\ProductCheckTrait;
-use Elastic\Elasticsearch\Utility;
 use Elastic\Transport\Exception\UnknownContentTypeException;
 use Elastic\Transport\Serializer\CsvSerializer;
 use Elastic\Transport\Serializer\JsonSerializer;
 use Elastic\Transport\Serializer\NDJsonSerializer;
 use Elastic\Transport\Serializer\XmlSerializer;
 use Psr\Http\Message\ResponseInterface;
-use stdClass;
 
 /**
  * Wraps a PSR-7 ResponseInterface offering helpers to deserialize the body response
@@ -45,7 +41,6 @@ class Elasticsearch implements ElasticsearchInterface, ResponseInterface, ArrayA
     protected array $asArray;
     protected object $asObject;
     protected string $asString;
-    protected bool $serverless = false;
 
     /**
      * The PSR-7 response
@@ -64,8 +59,6 @@ class Elasticsearch implements ElasticsearchInterface, ResponseInterface, ArrayA
     public function setResponse(ResponseInterface $response, bool $throwException = true): void
     {
         $this->productCheck($response);
-        // Check for Serverless response
-        $this->serverless = $this->isServerlessResponse($response);
         $this->response = $response;
         $status = $response->getStatusCode();
         if ($throwException && $status > 399 && $status < 500) {
@@ -81,22 +74,6 @@ class Elasticsearch implements ElasticsearchInterface, ResponseInterface, ArrayA
             );
             throw $error->setResponse($response);
         }
-    }
-
-    /**
-     * Check whether the response is from Serverless
-     */
-    private function isServerlessResponse(ResponseInterface $response): bool
-    {
-        return !empty($response->getHeader(Client::API_VERSION_HEADER));
-    }
-
-    /**
-     * Return true if the response is from Serverless
-     */
-    public function isServerless(): bool
-    {
-        return $this->serverless;
     }
 
     /**
@@ -138,7 +115,7 @@ class Elasticsearch implements ElasticsearchInterface, ResponseInterface, ArrayA
             return $this->asArray;
         }
         throw new UnknownContentTypeException(sprintf(
-            "Cannot deserialize the response as array with Content-Type: %s",
+            "Cannot deserialize the reponse as array with Content-Type: %s",
             $contentType
         ));
     }
@@ -171,7 +148,7 @@ class Elasticsearch implements ElasticsearchInterface, ResponseInterface, ArrayA
             return $this->asObject;
         }
         throw new UnknownContentTypeException(sprintf(
-            "Cannot deserialize the response as object with Content-Type: %s",
+            "Cannot deserialize the reponse as object with Content-Type: %s",
             $contentType
         ));
     }
@@ -219,8 +196,6 @@ class Elasticsearch implements ElasticsearchInterface, ResponseInterface, ArrayA
      * ArrayAccess interface
      * 
      * @see https://www.php.net/manual/en/class.arrayaccess.php
-     *
-     * @return mixed
      */
     #[\ReturnTypeWillChange]
     public function offsetGet($offset)
@@ -246,64 +221,5 @@ class Elasticsearch implements ElasticsearchInterface, ResponseInterface, ArrayA
     public function offsetUnset($offset): void
     {
         throw new ArrayAccessException('The array is reading only');
-    }
-
-    /**
-     * Map the response body to an object of a specific class
-     * by default the class is the PHP standard one (stdClass)
-     * 
-     * This mapping works only for ES|QL results (with columns and values)
-     * @see https://www.elastic.co/guide/en/elasticsearch/reference/current/esql.html
-     * 
-     * @return object[] 
-     */
-    public function mapTo(string $class = stdClass::class): array
-    {
-        $response = $this->asArray();
-        if (!isset($response['columns']) || !isset($response['values'])) {
-            throw new UnknownContentTypeException(sprintf(
-                "The response is not a valid ES|QL result. I cannot mapTo(\"%s\")",
-                $class
-            )); 
-        }
-        $iterator = [];
-        $ncol = count($response['columns']);
-        foreach ($response['values'] as $value) {
-            $obj = new $class;
-            for ($i=0; $i < $ncol; $i++) {
-                $field = Utility::formatVariableName($response['columns'][$i]['name']);
-                if ($class !== stdClass::class && !property_exists($obj, $field)) {
-                    continue;
-                }
-                switch($response['columns'][$i]['type']) {
-                    case 'boolean':
-                        $obj->{$field} = (bool) $value[$i];
-                        break;
-                    case 'date':
-                        $obj->{$field} = new DateTime($value[$i]);
-                        break;
-                    case 'alias':
-                    case 'text':
-                    case 'keyword':
-                    case 'ip':
-                        $obj->{$field} = (string) $value[$i];
-                        break;
-                    case 'integer':
-                        $obj->{$field} = (int) $value[$i];
-                        break;
-                    case 'long':
-                    case 'double':
-                        $obj->{$field} = (float) $value[$i];
-                        break;
-                    case 'null':
-                        $obj->{$field} = null;
-                        break;
-                    default:
-                        $obj->{$field} = $value[$i];
-                }
-            }
-            $iterator[] = $obj;
-        }
-        return $iterator;
     }
 }

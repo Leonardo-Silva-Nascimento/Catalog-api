@@ -29,20 +29,20 @@ use Http\Promise\Promise;
 class DanglingIndices extends AbstractEndpoint
 {
 	/**
-	 * Delete a dangling index
+	 * Deletes the specified dangling index
 	 *
-	 * @link https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-dangling-indices-delete-dangling-index
+	 * @see https://www.elastic.co/guide/en/elasticsearch/reference/master/modules-gateway-dangling-indices.html
 	 *
 	 * @param array{
 	 *     index_uuid: string, // (REQUIRED) The UUID of the dangling index
-	 *     accept_data_loss?: bool, // Must be set to true in order to delete the dangling index
-	 *     timeout?: int|string, // Explicit operation timeout
-	 *     master_timeout?: int|string, // Specify timeout for connection to master
-	 *     pretty?: bool, // Pretty format the returned JSON response. (DEFAULT: false)
-	 *     human?: bool, // Return human readable values for statistics. (DEFAULT: true)
-	 *     error_trace?: bool, // Include the stack trace of returned errors. (DEFAULT: false)
-	 *     source?: string, // The URL-encoded request definition. Useful for libraries that do not accept a request body for non-POST requests.
-	 *     filter_path?: string|array<string>, // A comma-separated list of filters used to reduce the response.
+	 *     accept_data_loss: boolean, // Must be set to true in order to delete the dangling index
+	 *     timeout: time, // Explicit operation timeout
+	 *     master_timeout: time, // Specify timeout for connection to master
+	 *     pretty: boolean, // Pretty format the returned JSON response. (DEFAULT: false)
+	 *     human: boolean, // Return human readable values for statistics. (DEFAULT: true)
+	 *     error_trace: boolean, // Include the stack trace of returned errors. (DEFAULT: false)
+	 *     source: string, // The URL-encoded request definition. Useful for libraries that do not accept a request body for non-POST requests.
+	 *     filter_path: list, // A comma-separated list of filters used to reduce the response.
 	 * } $params
 	 *
 	 * @throws MissingParameterException if a required parameter is missing
@@ -52,9 +52,8 @@ class DanglingIndices extends AbstractEndpoint
 	 *
 	 * @return Elasticsearch|Promise
 	 */
-	public function deleteDanglingIndex(?array $params = null)
+	public function deleteDanglingIndex(array $params = [])
 	{
-		$params = $params ?? [];
 		$this->checkRequiredParameters(['index_uuid'], $params);
 		$url = '/_dangling/' . $this->encode($params['index_uuid']);
 		$method = 'DELETE';
@@ -63,27 +62,25 @@ class DanglingIndices extends AbstractEndpoint
 		$headers = [
 			'Accept' => 'application/json',
 		];
-		$request = $this->createRequest($method, $url, $headers, $params['body'] ?? null);
-		$request = $this->addOtelAttributes($params, ['index_uuid'], $request, 'dangling_indices.delete_dangling_index');
-		return $this->client->sendRequest($request);
+		return $this->client->sendRequest($this->createRequest($method, $url, $headers, $params['body'] ?? null));
 	}
 
 
 	/**
-	 * Import a dangling index
+	 * Imports the specified dangling index
 	 *
-	 * @link https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-dangling-indices-import-dangling-index
+	 * @see https://www.elastic.co/guide/en/elasticsearch/reference/master/modules-gateway-dangling-indices.html
 	 *
 	 * @param array{
 	 *     index_uuid: string, // (REQUIRED) The UUID of the dangling index
-	 *     accept_data_loss?: bool, // Must be set to true in order to import the dangling index
-	 *     timeout?: int|string, // Explicit operation timeout
-	 *     master_timeout?: int|string, // Specify timeout for connection to master
-	 *     pretty?: bool, // Pretty format the returned JSON response. (DEFAULT: false)
-	 *     human?: bool, // Return human readable values for statistics. (DEFAULT: true)
-	 *     error_trace?: bool, // Include the stack trace of returned errors. (DEFAULT: false)
-	 *     source?: string, // The URL-encoded request definition. Useful for libraries that do not accept a request body for non-POST requests.
-	 *     filter_path?: string|array<string>, // A comma-separated list of filters used to reduce the response.
+	 *     accept_data_loss: boolean, // Must be set to true in order to import the dangling index
+	 *     timeout: time, // Explicit operation timeout
+	 *     master_timeout: time, // Specify timeout for connection to master
+	 *     pretty: boolean, // Pretty format the returned JSON response. (DEFAULT: false)
+	 *     human: boolean, // Return human readable values for statistics. (DEFAULT: true)
+	 *     error_trace: boolean, // Include the stack trace of returned errors. (DEFAULT: false)
+	 *     source: string, // The URL-encoded request definition. Useful for libraries that do not accept a request body for non-POST requests.
+	 *     filter_path: list, // A comma-separated list of filters used to reduce the response.
 	 * } $params
 	 *
 	 * @throws MissingParameterException if a required parameter is missing
@@ -93,9 +90,8 @@ class DanglingIndices extends AbstractEndpoint
 	 *
 	 * @return Elasticsearch|Promise
 	 */
-	public function importDanglingIndex(?array $params = null)
+	public function importDanglingIndex(array $params = [])
 	{
-		$params = $params ?? [];
 		$this->checkRequiredParameters(['index_uuid'], $params);
 		$url = '/_dangling/' . $this->encode($params['index_uuid']);
 		$method = 'POST';
@@ -104,23 +100,21 @@ class DanglingIndices extends AbstractEndpoint
 		$headers = [
 			'Accept' => 'application/json',
 		];
-		$request = $this->createRequest($method, $url, $headers, $params['body'] ?? null);
-		$request = $this->addOtelAttributes($params, ['index_uuid'], $request, 'dangling_indices.import_dangling_index');
-		return $this->client->sendRequest($request);
+		return $this->client->sendRequest($this->createRequest($method, $url, $headers, $params['body'] ?? null));
 	}
 
 
 	/**
-	 * Get the dangling indices
+	 * Returns all dangling indices.
 	 *
-	 * @link https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-dangling-indices-list-dangling-indices
+	 * @see https://www.elastic.co/guide/en/elasticsearch/reference/master/modules-gateway-dangling-indices.html
 	 *
 	 * @param array{
-	 *     pretty?: bool, // Pretty format the returned JSON response. (DEFAULT: false)
-	 *     human?: bool, // Return human readable values for statistics. (DEFAULT: true)
-	 *     error_trace?: bool, // Include the stack trace of returned errors. (DEFAULT: false)
-	 *     source?: string, // The URL-encoded request definition. Useful for libraries that do not accept a request body for non-POST requests.
-	 *     filter_path?: string|array<string>, // A comma-separated list of filters used to reduce the response.
+	 *     pretty: boolean, // Pretty format the returned JSON response. (DEFAULT: false)
+	 *     human: boolean, // Return human readable values for statistics. (DEFAULT: true)
+	 *     error_trace: boolean, // Include the stack trace of returned errors. (DEFAULT: false)
+	 *     source: string, // The URL-encoded request definition. Useful for libraries that do not accept a request body for non-POST requests.
+	 *     filter_path: list, // A comma-separated list of filters used to reduce the response.
 	 * } $params
 	 *
 	 * @throws NoNodeAvailableException if all the hosts are offline
@@ -129,9 +123,8 @@ class DanglingIndices extends AbstractEndpoint
 	 *
 	 * @return Elasticsearch|Promise
 	 */
-	public function listDanglingIndices(?array $params = null)
+	public function listDanglingIndices(array $params = [])
 	{
-		$params = $params ?? [];
 		$url = '/_dangling';
 		$method = 'GET';
 
@@ -139,8 +132,6 @@ class DanglingIndices extends AbstractEndpoint
 		$headers = [
 			'Accept' => 'application/json',
 		];
-		$request = $this->createRequest($method, $url, $headers, $params['body'] ?? null);
-		$request = $this->addOtelAttributes($params, [], $request, 'dangling_indices.list_dangling_indices');
-		return $this->client->sendRequest($request);
+		return $this->client->sendRequest($this->createRequest($method, $url, $headers, $params['body'] ?? null));
 	}
 }

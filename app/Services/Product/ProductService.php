@@ -1,12 +1,11 @@
 <?php
-
 namespace App\Services\Product;
 
 use App\Contracts\ProductRepositoryInterface;
 use App\DTOs\ProductDTO;
+use App\Jobs\SyncProductToElasticsearch;
 use App\Models\Product;
 use App\Services\Elasticsearch\ElasticsearchService;
-use App\Jobs\SyncProductToElasticsearch;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -21,47 +20,55 @@ class ProductService
 
     public function create(ProductDTO $dto): Product
     {
+        Log::info('📝 ProductService::create - Iniciando', ['dto' => $dto->toArray()]);
+
         $product = $this->repository->create($dto->toArray());
-        
-        // Sincronizar com Elasticsearch (async)
-        SyncProductToElasticsearch::dispatch($product->toArray(), 'index');
-        
-        // Publicar mensagem SQS
-        $this->publishToSQS($product, 'created');
-        
-        Log::info('Product created', ['id' => $product->id, 'sku' => $product->sku]);
-        
+
+        Log::info('✅ Produto criado no banco', ['product_id' => $product->id]);
+
+        try {
+            Log::info('🚀 Tentando dispatch do job', ['product_id' => $product->id]);
+
+            SyncProductToElasticsearch::dispatch($product->toArray(), 'index');
+
+            Log::info('✅ Job dispatchado com sucesso', ['product_id' => $product->id]);
+
+        } catch (\Exception $e) {
+            Log::error('❌ Erro ao dispatchar job', [
+                'product_id' => $product->id,
+                'error'      => $e->getMessage(),
+            ]);
+        }
+
         return $product;
     }
 
     public function update(string $id, ProductDTO $dto): Product
     {
         $product = $this->repository->update($id, $dto->toArray());
-        
-        // Invalidar cache
+
         Cache::forget("product.{$id}");
-        
-        // Sincronizar com Elasticsearch
+
         SyncProductToElasticsearch::dispatch($product->toArray(), 'update');
-        
+
         Log::info('Product updated', ['id' => $product->id]);
-        
+
         return $product;
     }
 
     public function delete(string $id): bool
     {
         $result = $this->repository->delete($id);
-        
+
         if ($result) {
             Cache::forget("product.{$id}");
             Cache::tags(['product_search'])->flush();
-            
+
             SyncProductToElasticsearch::dispatch(['id' => $id], 'delete');
-            
+
             Log::info('Product deleted', ['id' => $id]);
         }
-        
+
         return $result;
     }
 
@@ -79,28 +86,75 @@ class ProductService
 
     public function search(array $params): array
     {
-        // Não cachear paginação alta
-        $page = $params['page'] ?? 1;
+        $page     = $params['page'] ?? 1;
         $cacheKey = 'search_' . md5(json_encode($params));
-        
-        return $this->elasticsearch->search($params);
+
+        $must = [];
+
+        if (! empty($params['q'])) {
+            $must[] = [
+                'multi_match' => [
+                    'query'     => $params['q'],
+                    'fields'    => ['name^3', 'description'],
+                    'fuzziness' => 'AUTO',
+                ],
+            ];
+        }
+
+        if (! empty($params['category'])) {
+            $must[] = ['term' => ['category' => $params['category']]];
+        }
+
+        if (! empty($params['status'])) {
+            $must[] = ['term' => ['status' => $params['status']]];
+        }
+
+        $filter = [];
+        if (! empty($params['min_price'])) {
+            $filter[] = ['range' => ['price' => ['gte' => $params['min_price']]]];
+        }
+        if (! empty($params['max_price'])) {
+            $filter[] = ['range' => ['price' => ['lte' => $params['max_price']]]];
+        }
+
+        $sortField = $params['sort'] ?? 'created_at';
+        $sortOrder = $params['order'] ?? 'desc';
+
+        $searchParams = [
+            'index' => 'products',
+            'from'  => (($params['page'] ?? 1) - 1) * ($params['per_page'] ?? 15),
+            'size'  => $params['per_page'] ?? 15,
+            'body'  => [
+                'sort'  => [
+                    [$sortField => ['order' => $sortOrder]],
+                ],
+                'query' => [
+                    'bool' => [
+                        'must'   => $must,
+                        'filter' => $filter,
+                    ],
+                ],
+            ],
+        ];
+
+        return $this->elasticsearch->search($searchParams);
     }
 
     public function uploadImage(string $id, $image): ?string
     {
         $product = $this->find($id);
-        
-        if (!$product) {
+
+        if (! $product) {
             return null;
         }
 
         $path = $image->store('products/' . $id, 's3');
-        $url = Storage::disk('s3')->url($path);
-        
+        $url  = Storage::disk('s3')->url($path);
+
         $product->update(['image_url' => $url]);
-        
+
         Cache::forget("product.{$id}");
-        
+
         return $url;
     }
 
@@ -113,8 +167,8 @@ class ProductService
             } else {
                 // Simulação para desenvolvimento
                 Log::info('SQS Message published', [
-                    'event' => $event,
-                    'product_id' => $product->id
+                    'event'      => $event,
+                    'product_id' => $product->id,
                 ]);
             }
         } catch (\Exception $e) {

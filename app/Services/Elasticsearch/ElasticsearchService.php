@@ -1,9 +1,8 @@
 <?php
-
 namespace App\Services\Elasticsearch;
 
-use Elastic\Elasticsearch\ClientBuilder;
 use Elastic\Elasticsearch\Client;
+use Elastic\Elasticsearch\ClientBuilder;
 use Illuminate\Support\Facades\Log;
 
 class ElasticsearchService
@@ -13,41 +12,60 @@ class ElasticsearchService
 
     public function __construct()
     {
-        $this->client = ClientBuilder::create()
-            ->setHosts([config('services.elasticsearch.host')])
-            ->build();
-        
-        $this->createIndex();
+        $host = 'elasticsearch:9200';
+
+        Log::info('🔧 Inicializando ElasticsearchService', [
+            'host'     => $host,
+            'host_env' => env('ELASTICSEARCH_HOST'),
+            'port_env' => env('ELASTICSEARCH_PORT'),
+        ]);
+
+        try {
+            $this->client = ClientBuilder::create()
+                ->setHosts([$host])
+                ->build();
+
+            $info = $this->client->info();
+            Log::info('✅ Conexão Elasticsearch OK', [
+                'version' => $info['version']['number'],
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('❌ Falha ao conectar Elasticsearch', [
+                'error' => $e->getMessage(),
+            ]);
+            throw $e;
+        }
     }
 
     public function createIndex(): void
     {
         $params = [
             'index' => $this->index,
-            'body' => [
+            'body'  => [
                 'settings' => [
-                    'number_of_shards' => 1,
+                    'number_of_shards'   => 1,
                     'number_of_replicas' => 0,
                 ],
                 'mappings' => [
                     'properties' => [
-                        'id' => ['type' => 'keyword'],
-                        'sku' => ['type' => 'keyword'],
-                        'name' => ['type' => 'text'],
+                        'id'          => ['type' => 'keyword'],
+                        'sku'         => ['type' => 'keyword'],
+                        'name'        => ['type' => 'text'],
                         'description' => ['type' => 'text'],
-                        'price' => ['type' => 'float'],
-                        'category' => ['type' => 'keyword'],
-                        'status' => ['type' => 'keyword'],
-                        'image_url' => ['type' => 'keyword'],
-                        'created_at' => ['type' => 'date'],
-                        'updated_at' => ['type' => 'date'],
-                    ]
-                ]
-            ]
+                        'price'       => ['type' => 'float'],
+                        'category'    => ['type' => 'keyword'],
+                        'status'      => ['type' => 'keyword'],
+                        'image_url'   => ['type' => 'keyword'],
+                        'created_at'  => ['type' => 'date'],
+                        'updated_at'  => ['type' => 'date'],
+                    ],
+                ],
+            ],
         ];
 
         try {
-            if (!$this->client->indices()->exists(['index' => $this->index])) {
+            if (! $this->client->indices()->exists(['index' => $this->index])) {
                 $this->client->indices()->create($params);
             }
         } catch (\Exception $e) {
@@ -59,8 +77,8 @@ class ElasticsearchService
     {
         $params = [
             'index' => $this->index,
-            'id' => $document['id'],
-            'body' => $document
+            'id'    => $document['id'],
+            'body'  => $document,
         ];
 
         try {
@@ -75,8 +93,8 @@ class ElasticsearchService
         try {
             $this->client->update([
                 'index' => $this->index,
-                'id' => $id,
-                'body' => ['doc' => $document]
+                'id'    => $id,
+                'body'  => ['doc' => $document],
             ]);
         } catch (\Exception $e) {
             Log::error('Failed to update document: ' . $e->getMessage());
@@ -88,7 +106,7 @@ class ElasticsearchService
         try {
             $this->client->delete([
                 'index' => $this->index,
-                'id' => $id
+                'id'    => $id,
             ]);
         } catch (\Exception $e) {
             Log::error('Failed to delete document: ' . $e->getMessage());
@@ -97,63 +115,22 @@ class ElasticsearchService
 
     public function search(array $params): array
     {
-        $must = [];
-
-        if (!empty($params['q'])) {
-            $must[] = [
-                'multi_match' => [
-                    'query' => $params['q'],
-                    'fields' => ['name^3', 'description'],
-                    'fuzziness' => 'AUTO'
-                ]
-            ];
-        }
-
-        if (!empty($params['category'])) {
-            $must[] = ['term' => ['category' => $params['category']]];
-        }
-
-        if (!empty($params['status'])) {
-            $must[] = ['term' => ['status' => $params['status']]];
-        }
-
-        $filter = [];
-        if (!empty($params['min_price'])) {
-            $filter[] = ['range' => ['price' => ['gte' => $params['min_price']]]];
-        }
-        if (!empty($params['max_price'])) {
-            $filter[] = ['range' => ['price' => ['lte' => $params['max_price']]]];
-        }
-
-        $sortField = $params['sort'] ?? 'created_at';
-        $sortOrder = $params['order'] ?? 'desc';
-
-        $searchParams = [
-            'index' => $this->index,
-            'from' => (($params['page'] ?? 1) - 1) * ($params['per_page'] ?? 15),
-            'size' => $params['per_page'] ?? 15,
-            'body' => [
-                'sort' => [
-                    [$sortField => ['order' => $sortOrder]]
-                ],
-                'query' => [
-                    'bool' => [
-                        'must' => $must,
-                        'filter' => $filter
-                    ]
-                ]
-            ]
-        ];
-
         try {
-            $response = $this->client->search($searchParams);
-            
+            Log::info('📦 Parâmetros da busca:', $params);
+
+            $response = $this->client->search($params);
+
             return [
                 'total' => $response['hits']['total']['value'],
-                'hits' => array_column($response['hits']['hits'], '_source')
+                'hits'  => array_column($response['hits']['hits'], '_source'),
             ];
+
         } catch (\Exception $e) {
-            Log::error('Search failed: ' . $e->getMessage());
+            Log::error('❌ Erro no Elasticsearch:', [
+                'message' => $e->getMessage(),
+                'trace'   => $e->getTraceAsString(),
+            ]);
+
             return ['total' => 0, 'hits' => []];
         }
     }

@@ -51,3 +51,6 @@ cp .env.example .env
 
 # 10. Execute os testes
 ./vendor/bin/sail artisan test
+
+# 11. Deixe a fila executnado
+./vendor/bin/sail exec laravel.test php artisan queue:work redis --tries=3 --verbose
